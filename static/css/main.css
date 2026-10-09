@@ -1,0 +1,138 @@
+/* ──────────────────────────────────────────────────────────
+   Secure Health – main.css
+   Phase 1: Custom styles layered on Bootstrap 5
+────────────────────────────────────────────────────────── */
+
+/* ── Palette ──────────────────────────────────────────── */
+:root {
+  --sh-navy:     #0d1b2a;
+  --sh-dark:     #1b2a3b;
+  --sh-teal:     #0dcaf0;
+  --sh-footer-bg: #f1f5f9;
+}
+
+/* ── Global ───────────────────────────────────────────── */
+html, body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background-color: #f8fafc;
+  color: #212529;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+/* ── Navigation ───────────────────────────────────────── */
+.sh-navbar {
+  background: linear-gradient(135deg, var(--sh-navy) 0%, var(--sh-dark) 100%);
+  box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  padding-top: .75rem;
+  padding-bottom: .75rem;
+}
+
+.sh-navbar .nav-link {
+  font-size: .9rem;
+  font-weight: 500;
+  border-radius: .375rem;
+  padding: .35rem .75rem;
+  transition: background .2s ease, color .2s ease;
+}
+
+.sh-navbar .nav-link:hover,
+.sh-navbar .nav-link.active {
+  background: rgba(255,255,255,.12);
+  color: var(--sh-teal) !important;
+}
+
+/* ── Hero ─────────────────────────────────────────────── */
+.sh-hero {
+  min-height: 560px;
+  background: linear-gradient(135deg, var(--sh-navy) 0%, #0f3460 60%, #16213e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.sh-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(13,202,240,.12) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(102,16,242,.1)  0%, transparent 50%);
+}
+
+.sh-hero > * { position: relative; }
+
+/* ── Feature cards ────────────────────────────────────── */
+.sh-card {
+  border-radius: 1rem !important;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.sh-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0,0,0,.1) !important;
+}
+
+.sh-icon-wrap {
+  width: 72px;
+  height: 72px;
+}
+
+/* ── About section ────────────────────────────────────── */
+.sh-about {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.sh-about-icon {
+  font-size: 9rem;
+  color: #d0e4f7;
+}
+
+.sh-badge-tech {
+  background: #e8f4fd;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-weight: 600;
+  border-radius: .5rem;
+}
+
+/* ── Dashboard ────────────────────────────────────────── */
+.sh-kpi-icon {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sh-phase-dot {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* ── Login page ───────────────────────────────────────── */
+.sh-login-bg {
+  background: linear-gradient(135deg, var(--sh-navy) 0%, #0f3460 100%);
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+.sh-footer {
+  background: var(--sh-footer-bg);
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+/* ── Responsive tweaks ────────────────────────────────── */
+@media (max-width: 576px) {
+  .sh-hero { min-height: 460px; }
+  .sh-about-icon { font-size: 5rem; }
+}

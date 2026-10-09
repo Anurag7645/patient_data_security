@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Secure Health – Cybersecurity Framework{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero Section ──────────────────────────────────────────────── -->
+<section class="sh-hero d-flex align-items-center">
+  <div class="container text-center text-white py-5">
+    <div class="hero-icon mb-4">
+      <i class="bi bi-shield-lock-fill display-1 text-info"></i>
+    </div>
+    <h1 class="display-4 fw-bold mb-3">Secure Health</h1>
+    <p class="lead mb-2 fw-semibold text-info">
+      Cybersecurity Framework for Secure Patient Data Transmission
+    </p>
+    <p class="fs-6 text-white-50 mb-4">
+      A research-review prototype demonstrating end-to-end security principles
+      for modern healthcare networks.
+    </p>
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      {% if user.is_authenticated %}
+        <a href="{% url 'core:dashboard' %}" class="btn btn-info btn-lg px-4 fw-semibold">
+          <i class="bi bi-speedometer2 me-2"></i>Go to Dashboard
+        </a>
+      {% else %}
+        <a href="{% url 'core:login' %}" class="btn btn-info btn-lg px-4 fw-semibold">
+          <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+        </a>
+        <a href="#framework" class="btn btn-outline-light btn-lg px-4">
+          <i class="bi bi-file-earmark-text me-2"></i>Learn More
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ── Framework Pillars ─────────────────────────────────────────── -->
+<section id="framework" class="py-5 bg-white">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold text-dark">Security Framework Pillars</h2>
+      <p class="text-muted">Core principles guiding secure patient data transmission.</p>
+    </div>
+
+    <div class="row g-4">
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-primary-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-lock-fill text-primary fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">Data Encryption</h5>
+            <p class="card-text text-muted small">
+              End-to-end TLS/SSL encryption ensures patient records remain
+              confidential during transmission across healthcare networks.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-success-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-person-badge-fill text-success fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">Access Control</h5>
+            <p class="card-text text-muted small">
+              Role-Based Access Control (RBAC) restricts PHI access to
+              authorised personnel only, reducing insider-threat exposure.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-warning-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-activity text-warning fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">Audit Logging</h5>
+            <p class="card-text text-muted small">
+              Immutable audit trails capture every data access event, supporting
+              HIPAA compliance and forensic investigation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-danger-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-shield-exclamation text-danger fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">Threat Detection</h5>
+            <p class="card-text text-muted small">
+              Intrusion detection systems (IDS) and anomaly detection flag
+              suspicious activity in real time.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-info-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-hdd-network-fill text-info fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">Network Segmentation</h5>
+            <p class="card-text text-muted small">
+              Isolating clinical systems via VLANs and firewalls minimises
+              attack surface and limits lateral movement.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm sh-card">
+          <div class="card-body p-4 text-center">
+            <div class="sh-icon-wrap bg-secondary-subtle rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+              <i class="bi bi-clipboard2-check-fill text-secondary fs-2"></i>
+            </div>
+            <h5 class="card-title fw-bold">HIPAA Compliance</h5>
+            <p class="card-text text-muted small">
+              Aligning controls with HIPAA Security and Privacy Rules ensures
+              regulatory compliance for all PHI workflows.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── About Banner ──────────────────────────────────────────────── -->
+<section class="sh-about py-5">
+  <div class="container">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-6">
+        <h2 class="fw-bold mb-3">About This Prototype</h2>
+        <p class="text-muted">
+          Secure Health is a Phase 1 research-review prototype built to demonstrate
+          how modern cybersecurity principles can be applied to patient data
+          transmission in healthcare networks.
+        </p>
+        <p class="text-muted">
+          Designed as a companion to the original research presentation, this
+          prototype will evolve across phases to include threat modelling,
+          incident response workflows, and compliance dashboards.
+        </p>
+        <div class="d-flex gap-3 flex-wrap mt-4">
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">Django 5.2</span>
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">Bootstrap 5</span>
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">SQLite</span>
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">Python 3</span>
+        </div>
+      </div>
+      <div class="col-lg-6 text-center">
+        <i class="bi bi-hospital-fill sh-about-icon"></i>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

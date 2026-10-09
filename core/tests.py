@@ -364,3 +364,385 @@ class PatientDetailRBACTests(TestCase):
         self.client.force_login(self.admin)
         resp = self.client.get(self._url("TST-9999"))
         self.assertEqual(resp.status_code, 404)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3 Tests: Documents, Sharing, Audit Logging
+# ─────────────────────────────────────────────────────────────────────────────
+
+import shutil
+import tempfile
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+
+from .models import AuditLog, AuditOutcome, MedicalDocument, SharingGrant
+
+
+def make_sample_pdf(name="test.pdf", content=b"%PDF-1.4 sample content"):
+    return SimpleUploadedFile(name, content, content_type="application/pdf")
+
+
+def make_sample_png(name="test.png", content=b"\x89PNG\r\n\x1a\n\x00\x00\x00"):
+    return SimpleUploadedFile(name, content, content_type="image/png")
+
+
+def make_sample_jpg(name="test.jpg", content=b"\xff\xd8\xff\xe0\x00\x10JFIF"):
+    return SimpleUploadedFile(name, content, content_type="image/jpeg")
+
+
+class DocumentUploadTests(TestCase):
+
+    def setUp(self):
+        self.temp_media = tempfile.mkdtemp()
+        self.settings_override = override_settings(MEDIA_ROOT=self.temp_media)
+        self.settings_override.enable()
+
+        self.client = Client()
+        self.admin = make_user("up_admin", "upadmin@test.demo", Role.ADMIN)
+        self.doc1 = make_user("up_doc1", "updoc1@test.demo", Role.DOCTOR)
+        self.doc2 = make_user("up_doc2", "updoc2@test.demo", Role.DOCTOR)
+        self.pat_user = make_user("up_pat", "uppat@test.demo", Role.PATIENT)
+        self.patient = make_patient(self.pat_user, "P-UP-001", doctor=self.doc1)
+
+    def tearDown(self):
+        self.settings_override.disable()
+        shutil.rmtree(self.temp_media, ignore_errors=True)
+
+    def test_doctor_can_upload_valid_pdf_for_assigned_patient(self):
+        self.client.force_login(self.doc1)
+        pdf = make_sample_pdf()
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Blood Report",
+            "doc_type": "lab_result",
+            "file": pdf,
+        })
+        self.assertRedirects(resp, reverse("core:document_list", kwargs={"patient_id": self.patient.patient_id}))
+        self.assertEqual(MedicalDocument.objects.count(), 1)
+        doc = MedicalDocument.objects.first()
+        self.assertEqual(doc.display_name, "Blood Report")
+        self.assertEqual(doc.uploaded_by, self.doc1)
+        # Verify audit log recorded
+        self.assertTrue(AuditLog.objects.filter(action="doc_upload", outcome=AuditOutcome.SUCCESS).exists())
+
+    def test_admin_can_upload_document(self):
+        self.client.force_login(self.admin)
+        png = make_sample_png()
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Scan Image",
+            "doc_type": "imaging",
+            "file": png,
+        })
+        self.assertRedirects(resp, reverse("core:document_list", kwargs={"patient_id": self.patient.patient_id}))
+        self.assertEqual(MedicalDocument.objects.count(), 1)
+
+    def test_unassigned_doctor_denied_upload(self):
+        self.client.force_login(self.doc2)
+        pdf = make_sample_pdf()
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Blood Report",
+            "doc_type": "lab_result",
+            "file": pdf,
+        })
+        self.assertRedirects(resp, reverse("core:patient_list"))
+        self.assertEqual(MedicalDocument.objects.count(), 0)
+        self.assertTrue(AuditLog.objects.filter(action="doc_upload", outcome=AuditOutcome.DENIED).exists())
+
+    def test_patient_denied_upload(self):
+        self.client.force_login(self.pat_user)
+        pdf = make_sample_pdf()
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "My Report",
+            "doc_type": "lab_result",
+            "file": pdf,
+        })
+        self.assertRedirects(resp, reverse("core:patient_detail", kwargs={"patient_id": self.patient.patient_id}))
+        self.assertEqual(MedicalDocument.objects.count(), 0)
+
+    def test_upload_invalid_file_extension(self):
+        self.client.force_login(self.doc1)
+        bad_file = SimpleUploadedFile("script.py", b"print('malicious')", content_type="text/x-python")
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Script",
+            "doc_type": "other",
+            "file": bad_file,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFormError(resp.context["form"], "file", "File type '.py' is not allowed. Accepted: pdf, jpg, jpeg, png.")
+        self.assertEqual(MedicalDocument.objects.count(), 0)
+
+    def test_upload_spoofed_pdf_content_rejected(self):
+        self.client.force_login(self.doc1)
+        spoofed = SimpleUploadedFile("fake.pdf", b"This is not a real PDF header", content_type="application/pdf")
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Fake PDF",
+            "doc_type": "lab_result",
+            "file": spoofed,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFormError(resp.context["form"], "file", "File does not appear to be a valid PDF.")
+
+    def test_upload_size_limit_enforced(self):
+        self.client.force_login(self.doc1)
+        large_content = b"%PDF-1.4 " + b"0" * (5 * 1024 * 1024 + 100)
+        large_file = SimpleUploadedFile("large.pdf", large_content, content_type="application/pdf")
+        url = reverse("core:document_upload", kwargs={"patient_id": self.patient.patient_id})
+        resp = self.client.post(url, {
+            "display_name": "Too Large",
+            "doc_type": "lab_result",
+            "file": large_file,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["form"].errors)
+
+
+class DocumentAccessAndDownloadTests(TestCase):
+
+    def setUp(self):
+        self.temp_media = tempfile.mkdtemp()
+        self.settings_override = override_settings(MEDIA_ROOT=self.temp_media)
+        self.settings_override.enable()
+
+        self.client = Client()
+        self.admin = make_user("acc_admin", "accadmin@test.demo", Role.ADMIN)
+        self.doc1 = make_user("acc_doc1", "accdoc1@test.demo", Role.DOCTOR)
+        self.doc2 = make_user("acc_doc2", "accdoc2@test.demo", Role.DOCTOR)
+        self.mgmt = make_user("acc_mgmt", "accmgmt@test.demo", Role.MANAGEMENT)
+        self.pat1_u = make_user("acc_pat1", "accpat1@test.demo", Role.PATIENT)
+        self.pat2_u = make_user("acc_pat2", "accpat2@test.demo", Role.PATIENT)
+        self.pat1 = make_patient(self.pat1_u, "P-ACC-001", doctor=self.doc1)
+        self.pat2 = make_patient(self.pat2_u, "P-ACC-002", doctor=self.doc2)
+
+        # Create a document for patient 1
+        pdf = make_sample_pdf()
+        self.doc = MedicalDocument.objects.create(
+            patient=self.pat1,
+            uploaded_by=self.doc1,
+            display_name="Blood Count.pdf",
+            stored_file=pdf,
+            doc_type="lab_result",
+            file_size_bytes=len(b"%PDF-1.4 sample content"),
+        )
+
+    def tearDown(self):
+        self.settings_override.disable()
+        shutil.rmtree(self.temp_media, ignore_errors=True)
+
+    def test_assigned_doctor_can_view_document_list(self):
+        self.client.force_login(self.doc1)
+        resp = self.client.get(reverse("core:document_list", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Blood Count.pdf")
+
+    def test_unassigned_doctor_denied_document_list(self):
+        self.client.force_login(self.doc2)
+        resp = self.client.get(reverse("core:document_list", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+    def test_management_denied_document_list(self):
+        self.client.force_login(self.mgmt)
+        resp = self.client.get(reverse("core:document_list", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertRedirects(resp, reverse("core:patient_detail", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertTrue(AuditLog.objects.filter(action="doc_list", outcome=AuditOutcome.DENIED).exists())
+
+    def test_patient_can_view_own_document_list(self):
+        self.client.force_login(self.pat1_u)
+        resp = self.client.get(reverse("core:document_list", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Blood Count.pdf")
+
+    def test_patient_denied_other_patient_document_list(self):
+        self.client.force_login(self.pat2_u)
+        resp = self.client.get(reverse("core:document_list", kwargs={"patient_id": self.pat1.patient_id}))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+    def test_authorized_download_patient_and_doctor(self):
+        # Patient downloading own document
+        self.client.force_login(self.pat1_u)
+        resp = self.client.get(reverse("core:document_download", kwargs={"doc_id": self.doc.pk}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Disposition"], 'attachment; filename="Blood Count.pdf"')
+
+        # Assigned doctor downloading document
+        self.client.force_login(self.doc1)
+        resp = self.client.get(reverse("core:document_download", kwargs={"doc_id": self.doc.pk}))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_unauthorized_download_denied(self):
+        # Unassigned doctor
+        self.client.force_login(self.doc2)
+        resp = self.client.get(reverse("core:document_download", kwargs={"doc_id": self.doc.pk}))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+        # Management
+        self.client.force_login(self.mgmt)
+        resp = self.client.get(reverse("core:document_download", kwargs={"doc_id": self.doc.pk}))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+        # Other patient
+        self.client.force_login(self.pat2_u)
+        resp = self.client.get(reverse("core:document_download", kwargs={"doc_id": self.doc.pk}))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+        # Audit log has denied events
+        self.assertTrue(AuditLog.objects.filter(action="doc_download", outcome=AuditOutcome.DENIED).exists())
+
+
+class OTPProtectedSharingTests(TestCase):
+
+    def setUp(self):
+        self.temp_media = tempfile.mkdtemp()
+        self.settings_override = override_settings(MEDIA_ROOT=self.temp_media)
+        self.settings_override.enable()
+
+        self.client = Client()
+        self.doc1 = make_user("sh_doc1", "shdoc1@test.demo", Role.DOCTOR)
+        self.doc2 = make_user("sh_doc2", "shdoc2@test.demo", Role.DOCTOR)
+        self.recipient_user = make_user("sh_recip", "shrecip@test.demo", Role.DOCTOR)
+        self.intruder_user = make_user("sh_intrud", "shintrud@test.demo", Role.PATIENT)
+        self.pat_u = make_user("sh_pat", "shpat@test.demo", Role.PATIENT)
+        self.patient = make_patient(self.pat_u, "P-SH-001", doctor=self.doc1)
+
+        pdf = make_sample_pdf()
+        self.doc = MedicalDocument.objects.create(
+            patient=self.patient,
+            uploaded_by=self.doc1,
+            display_name="Confidential Consultation.pdf",
+            stored_file=pdf,
+            doc_type="referral",
+            file_size_bytes=len(b"%PDF-1.4 sample content"),
+        )
+
+    def tearDown(self):
+        self.settings_override.disable()
+        shutil.rmtree(self.temp_media, ignore_errors=True)
+
+    def test_doctor_creates_sharing_grant(self):
+        self.client.force_login(self.doc1)
+        url = reverse("core:share_document", kwargs={"doc_id": self.doc.pk})
+        resp = self.client.post(url, {"recipient_email": self.recipient_user.email})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("grant_otp", resp.context)
+        self.assertEqual(SharingGrant.objects.count(), 1)
+        grant = SharingGrant.objects.first()
+        self.assertEqual(grant.recipient, self.recipient_user)
+        self.assertFalse(grant.verified)
+        self.assertTrue(AuditLog.objects.filter(action="share_create", outcome=AuditOutcome.SUCCESS).exists())
+
+    def test_unassigned_doctor_cannot_create_share(self):
+        self.client.force_login(self.doc2)
+        url = reverse("core:share_document", kwargs={"doc_id": self.doc.pk})
+        resp = self.client.post(url, {"recipient_email": self.recipient_user.email})
+        self.assertRedirects(resp, reverse("core:patient_list"))
+        self.assertEqual(SharingGrant.objects.count(), 0)
+
+    def test_recipient_verifies_otp_and_downloads_shared_document(self):
+        token, otp_code = OTPToken.generate_for(self.recipient_user)
+        grant = SharingGrant.objects.create(
+            document=self.doc,
+            created_by=self.doc1,
+            recipient=self.recipient_user,
+            otp_token=token,
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+
+        # Login recipient
+        self.client.force_login(self.recipient_user)
+
+        # Verify with correct code
+        verify_url = reverse("core:share_verify", kwargs={"grant_id": grant.pk})
+        resp = self.client.post(verify_url, {"action": "verify", "otp_code": otp_code})
+        self.assertRedirects(resp, reverse("core:share_download", kwargs={"grant_id": grant.pk}))
+
+        grant.refresh_from_db()
+        self.assertTrue(grant.verified)
+
+        # Download document
+        dl_url = reverse("core:share_download", kwargs={"grant_id": grant.pk})
+        resp_dl = self.client.get(dl_url)
+        self.assertEqual(resp_dl.status_code, 200)
+        self.assertEqual(resp_dl["Content-Disposition"], 'attachment; filename="Confidential Consultation.pdf"')
+        self.assertTrue(AuditLog.objects.filter(action="share_download", outcome=AuditOutcome.SUCCESS).exists())
+
+    def test_intruder_cannot_verify_or_download_grant(self):
+        token, otp_code = OTPToken.generate_for(self.recipient_user)
+        grant = SharingGrant.objects.create(
+            document=self.doc,
+            created_by=self.doc1,
+            recipient=self.recipient_user,
+            otp_token=token,
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+
+        self.client.force_login(self.intruder_user)
+
+        # Intruder attempts to verify
+        verify_url = reverse("core:share_verify", kwargs={"grant_id": grant.pk})
+        resp = self.client.post(verify_url, {"action": "verify", "otp_code": otp_code})
+        self.assertRedirects(resp, reverse("core:dashboard"))
+        grant.refresh_from_db()
+        self.assertFalse(grant.verified)
+
+        # Intruder attempts to download
+        dl_url = reverse("core:share_download", kwargs={"grant_id": grant.pk})
+        resp_dl = self.client.get(dl_url)
+        self.assertRedirects(resp_dl, reverse("core:dashboard"))
+
+    def test_expired_grant_denied_verification_and_download(self):
+        token, otp_code = OTPToken.generate_for(self.recipient_user)
+        grant = SharingGrant.objects.create(
+            document=self.doc,
+            created_by=self.doc1,
+            recipient=self.recipient_user,
+            otp_token=token,
+            verified=False,
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        self.client.force_login(self.recipient_user)
+        verify_url = reverse("core:share_verify", kwargs={"grant_id": grant.pk})
+        resp = self.client.post(verify_url, {"action": "verify", "otp_code": otp_code})
+        self.assertRedirects(resp, reverse("core:dashboard"))
+
+        # Even if artificially verified, expired grant cannot download
+        grant.verified = True
+        grant.save()
+        dl_url = reverse("core:share_download", kwargs={"grant_id": grant.pk})
+        resp_dl = self.client.get(dl_url)
+        self.assertRedirects(resp_dl, reverse("core:dashboard"))
+
+
+class AuditLogTests(TestCase):
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = make_user("aud_admin", "audadmin@test.demo", Role.ADMIN)
+        self.doctor = make_user("aud_doc", "auddoc@test.demo", Role.DOCTOR)
+
+    def test_admin_can_access_audit_log(self):
+        AuditLog.log(action="test_action", outcome=AuditOutcome.SUCCESS, user=self.admin)
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("core:audit_log"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "test_action")
+
+    def test_non_admin_denied_audit_log(self):
+        self.client.force_login(self.doctor)
+        resp = self.client.get(reverse("core:audit_log"))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+        self.assertTrue(AuditLog.objects.filter(action="audit_access", outcome=AuditOutcome.DENIED).exists())
+
+    def test_audit_log_filtering(self):
+        AuditLog.log(action="event_alpha", outcome=AuditOutcome.SUCCESS)
+        AuditLog.log(action="event_beta", outcome=AuditOutcome.DENIED)
+
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("core:audit_log") + "?action=event_alpha")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "event_alpha")
+        self.assertNotContains(resp, "event_beta")

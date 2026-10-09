@@ -72,6 +72,14 @@
                 </a>
               </li>
               {% endif %}
+              {% if role == 'admin' %}
+              <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'audit_log' %}active{% endif %}"
+                   href="{% url 'core:audit_log' %}">
+                  <i class="bi bi-journal-text me-1"></i>Audit Log
+                </a>
+              </li>
+              {% endif %}
             {% endwith %}
 
             <li class="nav-item">

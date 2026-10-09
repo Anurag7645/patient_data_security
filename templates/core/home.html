@@ -40,6 +40,9 @@
     <div class="text-center mb-5">
       <h2 class="fw-bold text-dark">Security Framework Pillars</h2>
       <p class="text-muted">Core principles guiding secure patient data transmission.</p>
+      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-2 small">
+        <i class="bi bi-book me-1"></i>Conceptual framework — not implemented operational controls
+      </span>
     </div>
 
     <div class="row g-4">
@@ -144,21 +147,27 @@
     <div class="row align-items-center g-4">
       <div class="col-lg-6">
         <h2 class="fw-bold mb-3">About This Prototype</h2>
+        <div class="alert alert-warning border border-warning-subtle py-2 small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          <strong>Research prototype only.</strong> The security controls shown above are
+          framework <em>concepts</em> under study — not active operational systems.
+        </div>
         <p class="text-muted">
-          Secure Health is a Phase 1 research-review prototype built to demonstrate
-          how modern cybersecurity principles can be applied to patient data
-          transmission in healthcare networks.
+          Secure Health is a Phase 2 research-review prototype demonstrating
+          cybersecurity principles including mock OTP authentication and role-based
+          access control applied to patient data in healthcare networks.
         </p>
         <p class="text-muted">
-          Designed as a companion to the original research presentation, this
-          prototype will evolve across phases to include threat modelling,
-          incident response workflows, and compliance dashboards.
+          Future phases will add threat modelling, incident response workflows,
+          and compliance documentation.
         </p>
         <div class="d-flex gap-3 flex-wrap mt-4">
           <span class="badge sh-badge-tech fs-6 px-3 py-2">Django 5.2</span>
           <span class="badge sh-badge-tech fs-6 px-3 py-2">Bootstrap 5</span>
           <span class="badge sh-badge-tech fs-6 px-3 py-2">SQLite</span>
           <span class="badge sh-badge-tech fs-6 px-3 py-2">Python 3</span>
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">Mock OTP</span>
+          <span class="badge sh-badge-tech fs-6 px-3 py-2">RBAC</span>
         </div>
       </div>
       <div class="col-lg-6 text-center">
@@ -167,5 +176,6 @@
     </div>
   </div>
 </section>
+
 
 {% endblock %}

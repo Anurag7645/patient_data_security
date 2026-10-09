@@ -24,6 +24,7 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body>
+  {% load core_tags %}
 
   <!-- ── Navigation bar ─────────────────────────────────────────── -->
   <nav class="navbar navbar-expand-lg navbar-dark sh-navbar">
@@ -61,6 +62,18 @@
                 <i class="bi bi-speedometer2 me-1"></i>Dashboard
               </a>
             </li>
+
+            {% with user|get_role as role %}
+              {% if role == 'admin' or role == 'doctor' or role == 'management' %}
+              <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'patient_list' %}active{% endif %}"
+                   href="{% url 'core:patient_list' %}">
+                  <i class="bi bi-people me-1"></i>Patients
+                </a>
+              </li>
+              {% endif %}
+            {% endwith %}
+
             <li class="nav-item">
               <a class="nav-link" href="{% url 'core:logout' %}">
                 <i class="bi bi-box-arrow-right me-1"></i>Logout
@@ -68,7 +81,12 @@
             </li>
             <li class="nav-item">
               <span class="nav-link text-light opacity-75 small">
-                <i class="bi bi-person-circle me-1"></i>{{ user.get_username }}
+                <i class="bi bi-person-circle me-1"></i>{{ user.get_full_name|default:user.get_username }}
+                {% with user|get_role as role %}
+                  {% if role %}
+                    <span class="badge sh-role-badge ms-1">{{ role|capfirst }}</span>
+                  {% endif %}
+                {% endwith %}
               </span>
             </li>
           {% else %}
@@ -103,7 +121,7 @@
   <!-- ── Footer ────────────────────────────────────────────────── -->
   <footer class="sh-footer py-3 mt-auto">
     <div class="container text-center small text-muted">
-      &copy; 2026 Secure Health &mdash; Cybersecurity Framework for Patient Data Transmission
+      &copy; 2026 Secure Health &mdash; Research Prototype &mdash; Not for clinical use
     </div>
   </footer>
 

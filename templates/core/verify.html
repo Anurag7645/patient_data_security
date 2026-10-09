@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Verify OTP – Secure Health{% endblock %}
+
+{% block content %}
+<div class="sh-login-bg d-flex align-items-center justify-content-center py-5 min-vh-100">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-sm-10 col-md-7 col-lg-5 col-xl-4">
+
+        <div class="card border-0 shadow-lg">
+          <div class="card-body p-4 p-md-5">
+
+            <div class="text-center mb-4">
+              <i class="bi bi-key-fill text-warning display-5 mb-2 d-block"></i>
+              <h5 class="fw-bold mb-1">Enter Your Code</h5>
+              {% if email %}
+              <p class="text-muted small">Code sent to <strong>{{ email }}</strong></p>
+              {% endif %}
+            </div>
+
+            {% if messages %}
+              {% for msg in messages %}
+              <div class="alert alert-danger alert-dismissible fade show py-2 small" role="alert">
+                <i class="bi bi-exclamation-circle me-1"></i>{{ msg }}
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+              {% endfor %}
+            {% endif %}
+
+            <form method="post" action="{% url 'core:verify' %}" novalidate>
+              {% csrf_token %}
+              <div class="mb-4">
+                <label for="id_otp_code" class="form-label fw-semibold small">6-Digit Code</label>
+                <input
+                  type="text"
+                  id="id_otp_code"
+                  name="otp_code"
+                  class="form-control form-control-lg font-monospace text-center"
+                  placeholder="000000"
+                  maxlength="6"
+                  pattern="\d{6}"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  required
+                  autofocus
+                />
+              </div>
+              <button type="submit" class="btn btn-success w-100 fw-semibold py-2">
+                <i class="bi bi-check-circle me-2"></i>Verify
+              </button>
+            </form>
+
+            <hr class="my-3" />
+            <p class="text-center mb-0 small">
+              <a href="{% url 'core:login' %}" class="text-decoration-none">
+                <i class="bi bi-arrow-left me-1"></i>Request a new code
+              </a>
+            </p>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

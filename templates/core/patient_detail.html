@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.full_name }} – Secure Health{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+      {% if role != 'patient' %}
+      <li class="breadcrumb-item"><a href="{% url 'core:patient_list' %}">Patients</a></li>
+      {% endif %}
+      <li class="breadcrumb-item active">{{ profile.patient_id }}</li>
+    </ol>
+  </nav>
+
+  <!-- Header row -->
+  <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <div class="sh-kpi-icon bg-primary-subtle rounded-circle p-3">
+      <i class="bi bi-person-vcard-fill text-primary fs-3"></i>
+    </div>
+    <div>
+      <h3 class="fw-bold mb-0">{{ profile.full_name }}</h3>
+      <p class="text-muted mb-0 small">
+        Patient ID: <span class="fw-semibold font-monospace">{{ profile.patient_id }}</span>
+      </p>
+    </div>
+    {% if role == 'management' %}
+    <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-auto px-3 py-2">
+      <i class="bi bi-eye me-1"></i>Read-only (Management)
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+
+    <!-- ── Demographics ─────────────────────────────────── -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-person me-2 text-primary"></i>Demographics</h6>
+        </div>
+        <div class="card-body px-4">
+          <dl class="row small mb-0">
+            <dt class="col-5 text-muted">Full Name</dt>
+            <dd class="col-7">{{ profile.full_name }}</dd>
+
+            <dt class="col-5 text-muted">Date of Birth</dt>
+            <dd class="col-7">{{ profile.date_of_birth|date:"d M Y" }}</dd>
+
+            <dt class="col-5 text-muted">Age</dt>
+            <dd class="col-7">{{ profile.age }}</dd>
+
+            <dt class="col-5 text-muted">Gender</dt>
+            <dd class="col-7">{{ profile.get_gender_display }}</dd>
+
+            <dt class="col-5 text-muted">Blood Group</dt>
+            <dd class="col-7">
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ profile.blood_group }}</span>
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Contact ──────────────────────────────────────── -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-telephone me-2 text-primary"></i>Contact Details</h6>
+        </div>
+        <div class="card-body px-4">
+          <dl class="row small mb-0">
+            <dt class="col-5 text-muted">Phone</dt>
+            <dd class="col-7">{{ profile.phone|default:"—" }}</dd>
+
+            <dt class="col-5 text-muted">Address</dt>
+            <dd class="col-7">{{ profile.address|default:"—"|linebreaksbr }}</dd>
+
+            <dt class="col-5 text-muted">Assigned Doctor</dt>
+            <dd class="col-7">{{ profile.assigned_doctor.get_full_name|default:"Not assigned" }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Medical information (hidden from management) ── -->
+    {% if role != 'management' %}
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-clipboard2-pulse me-2 text-danger"></i>Medical History</h6>
+        </div>
+        <div class="card-body px-4">
+          <p class="small text-muted mb-0">{{ profile.medical_history|default:"None recorded."|linebreaksbr }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-capsule me-2 text-success"></i>Current Medications</h6>
+        </div>
+        <div class="card-body px-4">
+          <p class="small text-muted mb-0">{{ profile.current_medications|default:"None."|linebreaksbr }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Allergies</h6>
+        </div>
+        <div class="card-body px-4">
+          <p class="small text-muted mb-0">{{ profile.allergies|default:"None known."|linebreaksbr }}</p>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Management notice -->
+    <div class="col-12">
+      <div class="alert alert-warning border border-warning-subtle">
+        <i class="bi bi-lock-fill me-2"></i>
+        Medical history, medications, and allergy data are restricted to clinical staff.
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /row -->
+
+  <div class="mt-4">
+    {% if role != 'patient' %}
+    <a href="{% url 'core:patient_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+    {% else %}
+    <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

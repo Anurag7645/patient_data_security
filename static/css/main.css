@@ -1,6 +1,6 @@
 /* ──────────────────────────────────────────────────────────
    Secure Health – main.css
-   Phase 1: Custom styles layered on Bootstrap 5
+   Phase 1 + 2: Custom styles layered on Bootstrap 5
 ────────────────────────────────────────────────────────── */
 
 /* ── Palette ──────────────────────────────────────────── */
@@ -135,4 +135,56 @@ main {
 @media (max-width: 576px) {
   .sh-hero { min-height: 460px; }
   .sh-about-icon { font-size: 5rem; }
+}
+
+/* ── Phase 2 additions ────────────────────────────────── */
+
+/* Role badge in navbar */
+.sh-role-badge {
+  background: rgba(13,202,240,.18);
+  color: var(--sh-teal);
+  border: 1px solid rgba(13,202,240,.35);
+  font-size: .7rem;
+  font-weight: 700;
+  border-radius: .35rem;
+  padding: .15rem .45rem;
+  vertical-align: middle;
+}
+
+/* OTP demo panel */
+.alert .display-6 {
+  letter-spacing: .35em;
+}
+
+/* Monospace OTP input */
+.font-monospace {
+  font-family: "Consolas", "Courier New", monospace !important;
+}
+
+/* Patient list / detail table */
+.table th {
+  font-size: .82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  font-size: .85rem;
+}
+
+/* Patient detail definition list */
+dl.row dt {
+  font-size: .82rem;
+  padding-top: .25rem;
+}
+dl.row dd {
+  padding-top: .2rem;
+}
+
+/* KPI icon circle variant */
+.sh-kpi-icon.rounded-circle {
+  border-radius: 50% !important;
 }

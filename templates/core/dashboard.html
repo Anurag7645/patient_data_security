@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_tags %}
 {% block title %}Dashboard – Secure Health{% endblock %}
 
 {% block content %}
@@ -10,107 +11,94 @@
       <h2 class="fw-bold mb-1">
         <i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard
       </h2>
-      <p class="text-muted mb-0">Welcome back, <strong>{{ user.get_username }}</strong>.</p>
+      <p class="text-muted mb-0">
+        Welcome, <strong>{{ user.get_full_name|default:user.get_username }}</strong>
+        &mdash;
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ role|capfirst }}</span>
+      </p>
     </div>
     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
       <i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i>System Operational
     </span>
   </div>
 
-  <!-- KPI cards -->
-  <div class="row g-4 mb-4">
+  <!-- ── ADMIN ──────────────────────────────────────────────── -->
+  {% if role == 'admin' %}
 
+  <div class="row g-4 mb-4">
     <div class="col-sm-6 col-xl-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body d-flex align-items-center gap-3 p-4">
           <div class="sh-kpi-icon bg-primary-subtle rounded-3 p-3">
-            <i class="bi bi-shield-check-fill text-primary fs-3"></i>
+            <i class="bi bi-people-fill text-primary fs-3"></i>
           </div>
           <div>
-            <div class="fs-3 fw-bold">6</div>
-            <div class="text-muted small">Active Controls</div>
+            <div class="fs-3 fw-bold">{{ total_users }}</div>
+            <div class="text-muted small">Total Users</div>
           </div>
         </div>
       </div>
     </div>
-
     <div class="col-sm-6 col-xl-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body d-flex align-items-center gap-3 p-4">
           <div class="sh-kpi-icon bg-success-subtle rounded-3 p-3">
-            <i class="bi bi-check-circle-fill text-success fs-3"></i>
+            <i class="bi bi-heart-pulse-fill text-success fs-3"></i>
           </div>
           <div>
-            <div class="fs-3 fw-bold">100%</div>
-            <div class="text-muted small">HIPAA Alignment</div>
+            <div class="fs-3 fw-bold">{{ total_patients }}</div>
+            <div class="text-muted small">Patients</div>
           </div>
         </div>
       </div>
     </div>
-
-    <div class="col-sm-6 col-xl-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex align-items-center gap-3 p-4">
-          <div class="sh-kpi-icon bg-warning-subtle rounded-3 p-3">
-            <i class="bi bi-exclamation-triangle-fill text-warning fs-3"></i>
-          </div>
-          <div>
-            <div class="fs-3 fw-bold">0</div>
-            <div class="text-muted small">Open Threats</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="col-sm-6 col-xl-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body d-flex align-items-center gap-3 p-4">
           <div class="sh-kpi-icon bg-info-subtle rounded-3 p-3">
-            <i class="bi bi-journal-check text-info fs-3"></i>
+            <i class="bi bi-person-badge-fill text-info fs-3"></i>
           </div>
           <div>
-            <div class="fs-3 fw-bold">Phase 1</div>
+            <div class="fs-3 fw-bold">{{ total_doctors }}</div>
+            <div class="text-muted small">Doctors</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body d-flex align-items-center gap-3 p-4">
+          <div class="sh-kpi-icon bg-warning-subtle rounded-3 p-3">
+            <i class="bi bi-shield-check-fill text-warning fs-3"></i>
+          </div>
+          <div>
+            <div class="fs-3 fw-bold">Phase 2</div>
             <div class="text-muted small">Current Phase</div>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 
-  <!-- Framework status table -->
   <div class="row g-4">
     <div class="col-lg-8">
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
-          <h6 class="fw-bold mb-0">
-            <i class="bi bi-list-check me-2 text-primary"></i>Framework Control Status
-          </h6>
+          <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Users</h6>
         </div>
         <div class="card-body px-4">
           <div class="table-responsive">
             <table class="table table-hover align-middle">
               <thead class="table-light">
-                <tr>
-                  <th scope="col">Control</th>
-                  <th scope="col">Category</th>
-                  <th scope="col">Status</th>
-                </tr>
+                <tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th></tr>
               </thead>
               <tbody>
-                {% for item in controls %}
+                {% for u in recent_users %}
                 <tr>
-                  <td class="fw-semibold">{{ item.name }}</td>
-                  <td class="text-muted small">{{ item.category }}</td>
-                  <td>
-                    <span class="badge
-                      {% if item.status == 'Active' %}bg-success-subtle text-success border border-success-subtle
-                      {% elif item.status == 'Review' %}bg-warning-subtle text-warning border border-warning-subtle
-                      {% else %}bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %}
-                      px-2 py-1">
-                      {{ item.status }}
-                    </span>
-                  </td>
+                  <td class="fw-semibold">{{ u.username }}</td>
+                  <td class="text-muted small">{{ u.email }}</td>
+                  <td>{{ u|get_role|capfirst }}</td>
+                  <td class="text-muted small">{{ u.date_joined|date:"d M Y" }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -119,63 +107,146 @@
         </div>
       </div>
     </div>
-
-    <!-- Phase roadmap -->
     <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100 p-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-link-45deg me-2 text-primary"></i>Quick Links</h6>
+        <a href="{% url 'core:patient_list' %}" class="btn btn-outline-primary w-100 mb-2">
+          <i class="bi bi-people me-2"></i>View All Patients
+        </a>
+        <a href="{% url 'admin:index' %}" class="btn btn-outline-secondary w-100">
+          <i class="bi bi-gear me-2"></i>Django Admin
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DOCTOR ─────────────────────────────────────────────── -->
+  {% elif role == 'doctor' %}
+
+  <div class="row g-4 mb-4">
+    <div class="col-sm-6 col-xl-4">
       <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
-          <h6 class="fw-bold mb-0">
-            <i class="bi bi-map me-2 text-primary"></i>Project Roadmap
-          </h6>
-        </div>
-        <div class="card-body px-4">
-          <ul class="list-unstyled mb-0">
-
-            <li class="d-flex align-items-start gap-3 mb-4">
-              <div class="sh-phase-dot bg-success rounded-circle mt-1 flex-shrink-0"></div>
-              <div>
-                <div class="fw-bold small">Phase 1 <span class="badge bg-success ms-1">Current</span></div>
-                <div class="text-muted" style="font-size:.8rem;">
-                  Project foundation, navigation, home page, login, SQLite setup.
-                </div>
-              </div>
-            </li>
-
-            <li class="d-flex align-items-start gap-3 mb-4">
-              <div class="sh-phase-dot bg-secondary rounded-circle mt-1 flex-shrink-0"></div>
-              <div>
-                <div class="fw-bold small text-muted">Phase 2</div>
-                <div class="text-muted" style="font-size:.8rem;">
-                  User roles, authentication hardening, audit log model.
-                </div>
-              </div>
-            </li>
-
-            <li class="d-flex align-items-start gap-3 mb-4">
-              <div class="sh-phase-dot bg-secondary rounded-circle mt-1 flex-shrink-0"></div>
-              <div>
-                <div class="fw-bold small text-muted">Phase 3</div>
-                <div class="text-muted" style="font-size:.8rem;">
-                  Threat modelling visualisations and compliance reports.
-                </div>
-              </div>
-            </li>
-
-            <li class="d-flex align-items-start gap-3">
-              <div class="sh-phase-dot bg-secondary rounded-circle mt-1 flex-shrink-0"></div>
-              <div>
-                <div class="fw-bold small text-muted">Phase 4</div>
-                <div class="text-muted" style="font-size:.8rem;">
-                  Incident response module and policy documentation.
-                </div>
-              </div>
-            </li>
-
-          </ul>
+        <div class="card-body d-flex align-items-center gap-3 p-4">
+          <div class="sh-kpi-icon bg-success-subtle rounded-3 p-3">
+            <i class="bi bi-heart-pulse-fill text-success fs-3"></i>
+          </div>
+          <div>
+            <div class="fs-3 fw-bold">{{ assigned_patients|length }}</div>
+            <div class="text-muted small">Assigned Patients</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+      <h6 class="fw-bold mb-0"><i class="bi bi-people me-2 text-primary"></i>My Patients</h6>
+    </div>
+    <div class="card-body px-4">
+      {% if assigned_patients %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr><th>ID</th><th>Name</th><th>Blood Group</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            {% for p in assigned_patients %}
+            <tr>
+              <td class="fw-semibold font-monospace">{{ p.patient_id }}</td>
+              <td>{{ p.full_name }}</td>
+              <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ p.blood_group }}</span></td>
+              <td>
+                <a href="{% url 'core:patient_detail' p.patient_id %}" class="btn btn-sm btn-outline-primary">
+                  View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted py-3">No patients currently assigned to you.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── MANAGEMENT ─────────────────────────────────────────── -->
+  {% elif role == 'management' %}
+
+  <div class="row g-4 mb-4">
+    <div class="col-sm-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body d-flex align-items-center gap-3 p-4">
+          <div class="sh-kpi-icon bg-success-subtle rounded-3 p-3">
+            <i class="bi bi-heart-pulse-fill text-success fs-3"></i>
+          </div>
+          <div>
+            <div class="fs-3 fw-bold">{{ total_patients }}</div>
+            <div class="text-muted small">Total Patients</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body d-flex align-items-center gap-3 p-4">
+          <div class="sh-kpi-icon bg-info-subtle rounded-3 p-3">
+            <i class="bi bi-person-badge-fill text-info fs-3"></i>
+          </div>
+          <div>
+            <div class="fs-3 fw-bold">{{ total_doctors }}</div>
+            <div class="text-muted small">Active Doctors</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm p-4">
+    <h6 class="fw-bold mb-3"><i class="bi bi-info-circle me-2 text-primary"></i>Management Access</h6>
+    <p class="text-muted small mb-3">
+      You can view patient records in read-only mode. Medical record editing is restricted to doctors.
+    </p>
+    <a href="{% url 'core:patient_list' %}" class="btn btn-outline-primary">
+      <i class="bi bi-people me-2"></i>View Patient List
+    </a>
+  </div>
+
+  <!-- ── PATIENT ─────────────────────────────────────────────── -->
+  {% elif role == 'patient' %}
+
+  {% if patient_profile %}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm p-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-person-circle me-2 text-primary"></i>My Record</h6>
+        <dl class="row small mb-0">
+          <dt class="col-5 text-muted">Patient ID</dt>
+          <dd class="col-7 fw-semibold font-monospace">{{ patient_profile.patient_id }}</dd>
+          <dt class="col-5 text-muted">Blood Group</dt>
+          <dd class="col-7">
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ patient_profile.blood_group }}</span>
+          </dd>
+          <dt class="col-5 text-muted">Date of Birth</dt>
+          <dd class="col-7">{{ patient_profile.date_of_birth|date:"d M Y" }}</dd>
+          <dt class="col-5 text-muted">Age</dt>
+          <dd class="col-7">{{ patient_profile.age }}</dd>
+          <dt class="col-5 text-muted">Assigned Doctor</dt>
+          <dd class="col-7">{{ patient_profile.assigned_doctor.get_full_name|default:"Not assigned" }}</dd>
+        </dl>
+        <a href="{% url 'core:patient_detail' patient_profile.patient_id %}" class="btn btn-outline-primary btn-sm mt-3">
+          <i class="bi bi-file-medical me-1"></i>View Full Record
+        </a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">No patient record found for your account. Please contact an administrator.</div>
+  {% endif %}
+
+  {% endif %}
 
 </div>
 {% endblock %}

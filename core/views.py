@@ -357,7 +357,7 @@ def document_upload(request, patient_id):
                          user=request.user, resource_type="PatientProfile",
                          resource_id=patient_id, reason="Doctor not assigned")
             messages.error(request, "You may only upload documents for your assigned patients.")
-            return redirect("core:document_list", patient_id=patient_id)
+            return redirect("core:patient_list")
     else:
         AuditLog.log(action="doc_upload", outcome=AuditOutcome.DENIED,
                      user=request.user, resource_type="PatientProfile",
@@ -458,7 +458,7 @@ def share_document(request, doc_id):
                      user=request.user, resource_type="MedicalDocument",
                      resource_id=doc_id, reason="Doctor not assigned")
         messages.error(request, "You may only share documents for your assigned patients.")
-        return redirect("core:document_list", patient_id=doc.patient.patient_id)
+        return redirect("core:patient_list")
 
     form = ShareDocumentForm(request.POST or None)
     grant_otp = None

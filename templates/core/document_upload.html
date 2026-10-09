@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Upload Document – Secure Health{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:patient_list' %}">Patients</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:patient_detail' profile.patient_id %}">{{ profile.patient_id }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:document_list' profile.patient_id %}">Documents</a></li>
+      <li class="breadcrumb-item active">Upload</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h4 class="fw-bold mb-0">
+            <i class="bi bi-upload text-primary me-2"></i>Upload Medical Document
+          </h4>
+          <p class="text-muted small mt-1">
+            For patient: <strong>{{ profile.full_name }}</strong>
+            (<span class="font-monospace">{{ profile.patient_id }}</span>)
+          </p>
+        </div>
+        <div class="card-body px-4 pb-4">
+
+          <div class="alert alert-info py-2 small mb-4">
+            <i class="bi bi-shield-lock me-1"></i>
+            Files are stored in a private directory and are never served as public URLs.
+            Maximum size: <strong>5 MB</strong>. Accepted formats: <strong>PDF, JPG, PNG</strong>.
+          </div>
+
+          {% if form.errors %}
+          <div class="alert alert-danger py-2 small">
+            <i class="bi bi-exclamation-triangle me-1"></i>Please correct the errors below.
+          </div>
+          {% endif %}
+
+          <form method="post" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label for="id_display_name" class="form-label fw-semibold small">{{ form.display_name.label }}</label>
+              {{ form.display_name }}
+              {% if form.display_name.errors %}
+              <div class="invalid-feedback d-block small">{{ form.display_name.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="id_doc_type" class="form-label fw-semibold small">{{ form.doc_type.label }}</label>
+              {{ form.doc_type }}
+              {% if form.doc_type.errors %}
+              <div class="invalid-feedback d-block small">{{ form.doc_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-4">
+              <label for="id_file" class="form-label fw-semibold small">{{ form.file.label }}</label>
+              {{ form.file }}
+              {% if form.file.errors %}
+              <div class="invalid-feedback d-block small">{{ form.file.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary fw-semibold">
+                <i class="bi bi-upload me-2"></i>Upload
+              </button>
+              <a href="{% url 'core:document_list' profile.patient_id %}" class="btn btn-outline-secondary">
+                Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

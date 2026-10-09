@@ -746,3 +746,47 @@ class AuditLogTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "event_alpha")
         self.assertNotContains(resp, "event_beta")
+
+
+class IntegrationAndStartupTests(TestCase):
+    """Explicit tests for startup imports, form validation, and Phase 3 URL routing."""
+
+    def test_startup_imports(self):
+        """Ensure DocumentUploadForm, ShareDocumentForm and all Phase 3 views are importable."""
+        from core.forms import DocumentUploadForm, ShareDocumentForm
+        from core import views
+
+        self.assertTrue(callable(DocumentUploadForm))
+        self.assertTrue(callable(ShareDocumentForm))
+        self.assertTrue(hasattr(views, "document_list"))
+        self.assertTrue(hasattr(views, "document_upload"))
+        self.assertTrue(hasattr(views, "document_download"))
+        self.assertTrue(hasattr(views, "share_document"))
+        self.assertTrue(hasattr(views, "share_verify"))
+        self.assertTrue(hasattr(views, "share_download"))
+        self.assertTrue(hasattr(views, "audit_log"))
+
+    def test_phase3_url_reversal(self):
+        """Ensure all Phase 3 URL names reverse properly without NoReverseMatch."""
+        self.assertEqual(reverse("core:document_list", kwargs={"patient_id": "P001"}), "/patients/P001/documents/")
+        self.assertEqual(reverse("core:document_upload", kwargs={"patient_id": "P001"}), "/patients/P001/documents/upload/")
+        self.assertEqual(reverse("core:document_download", kwargs={"doc_id": 1}), "/documents/1/download/")
+        self.assertEqual(reverse("core:share_document", kwargs={"doc_id": 1}), "/documents/1/share/")
+        self.assertEqual(reverse("core:share_verify", kwargs={"grant_id": 1}), "/share/1/verify/")
+        self.assertEqual(reverse("core:share_download", kwargs={"grant_id": 1}), "/share/1/download/")
+        self.assertEqual(reverse("core:audit_log"), "/audit/")
+
+    def test_share_document_form_validation(self):
+        """Test recipient lookup and validation on ShareDocumentForm."""
+        from core.forms import ShareDocumentForm
+        user = make_user("recipient_test", "recip_test@securehealth.demo", Role.DOCTOR)
+
+        # Non-existent user
+        form_invalid = ShareDocumentForm(data={"recipient_email": "nonexistent@demo.com"})
+        self.assertFalse(form_invalid.is_valid())
+        self.assertIn("recipient_email", form_invalid.errors)
+
+        # Existing user
+        form_valid = ShareDocumentForm(data={"recipient_email": "recip_test@securehealth.demo"})
+        self.assertTrue(form_valid.is_valid())
+        self.assertEqual(form_valid.get_recipient(), user)

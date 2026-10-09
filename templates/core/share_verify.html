@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Verify Sharing OTP – Secure Health{% endblock %}
+
+{% block content %}
+<div class="sh-login-bg d-flex align-items-center justify-content-center py-5 min-vh-100">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-sm-10 col-md-7 col-lg-5 col-xl-4">
+
+        <div class="card border-0 shadow-lg">
+          <div class="card-body p-4 p-md-5">
+
+            <div class="text-center mb-4">
+              <i class="bi bi-share-fill text-warning display-5 mb-2 d-block"></i>
+              <h5 class="fw-bold mb-1">Shared Document Access</h5>
+              <p class="text-muted small">
+                <strong>{{ grant.document.display_name }}</strong><br/>
+                Shared by {{ grant.created_by.get_full_name|default:grant.created_by.username }}
+              </p>
+            </div>
+
+            <div class="alert alert-warning border border-warning-subtle py-2 small mb-4">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              <strong>MOCK OTP SHARING — DEMO ONLY.</strong>
+              Verify your identity with the code provided by the sender.
+            </div>
+
+            {% if messages %}
+              {% for msg in messages %}
+              <div class="alert alert-danger alert-dismissible fade show py-2 small" role="alert">
+                <i class="bi bi-exclamation-circle me-1"></i>{{ msg }}
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+              {% endfor %}
+            {% endif %}
+
+            {% if otp_plaintext %}
+            <!-- Demo OTP panel (shown when OTP was re-issued) -->
+            <div class="bg-light rounded-3 p-3 text-center mb-3">
+              <p class="small text-muted mb-1">Your new demo OTP</p>
+              <span class="display-6 fw-bold font-monospace">{{ otp_plaintext }}</span>
+            </div>
+            {% endif %}
+
+            <!-- Re-issue OTP button -->
+            <form method="post" class="mb-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="request_otp" />
+              <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                <i class="bi bi-arrow-repeat me-1"></i>Request New OTP
+              </button>
+            </form>
+
+            <!-- Verify form -->
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <input type="hidden" name="action" value="verify" />
+              <div class="mb-3">
+                <label for="id_otp_code" class="form-label fw-semibold small">6-Digit Code</label>
+                <input
+                  type="text"
+                  id="id_otp_code"
+                  name="otp_code"
+                  class="form-control font-monospace text-center fs-4"
+                  placeholder="000000"
+                  maxlength="6"
+                  pattern="\d{6}"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  required
+                  autofocus
+                />
+              </div>
+              <button type="submit" class="btn btn-success w-100 fw-semibold py-2">
+                <i class="bi bi-check-circle me-2"></i>Verify & Access Document
+              </button>
+            </form>
+
+            <hr class="my-3" />
+            <p class="text-center mb-0 small text-muted">
+              <i class="bi bi-clock me-1"></i>Grant expires {{ grant.expires_at|date:"H:i" }} UTC
+            </p>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

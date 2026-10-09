@@ -90,3 +90,15 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── Media files (private uploads – Phase 3) ───────────────────────────────────
+# Files are served ONLY through authenticated Django views, never as public URLs.
+MEDIA_ROOT = BASE_DIR / "media_private"
+MEDIA_URL  = "/media/"          # not publicly routed; kept for Django internals
+
+# ── Upload constraints (Phase 3) ─────────────────────────────────────────────
+MAX_UPLOAD_BYTES    = 5 * 1024 * 1024   # 5 MB
+ALLOWED_DOC_TYPES   = ["pdf", "jpg", "jpeg", "png"]
+
+# ── Sharing grant expiry (Phase 3) ────────────────────────────────────────────
+SHARING_GRANT_MINUTES = 15

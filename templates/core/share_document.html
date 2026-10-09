@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Share Document – Secure Health{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:document_list' doc.patient.patient_id %}">Documents</a></li>
+      <li class="breadcrumb-item active">Share</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+
+      {% if grant_otp %}
+      <!-- ── OTP panel shown after grant created ── -->
+      <div class="card border-0 shadow-lg mb-4">
+        <div class="card-body p-4">
+          <div class="alert alert-warning border border-warning-subtle mb-3">
+            <div class="fw-bold mb-1">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              MOCK OTP SHARING — DEMO ONLY
+            </div>
+            <p class="small mb-1 text-muted">
+              In a real system this code would be delivered to the recipient out-of-band.
+              For this prototype it is shown here for demonstration purposes only.
+            </p>
+          </div>
+
+          <h5 class="fw-bold mb-2">Sharing Grant Created</h5>
+          <dl class="row small mb-3">
+            <dt class="col-5 text-muted">Document</dt>
+            <dd class="col-7 fw-semibold">{{ doc.display_name }}</dd>
+            <dt class="col-5 text-muted">Recipient</dt>
+            <dd class="col-7">{{ grant.recipient.get_full_name|default:grant.recipient.username }}</dd>
+            <dt class="col-5 text-muted">Expires</dt>
+            <dd class="col-7">{{ grant.expires_at|date:"d M Y H:i" }} UTC</dd>
+            <dt class="col-5 text-muted">Verify URL</dt>
+            <dd class="col-7">
+              <a href="{% url 'core:share_verify' grant.pk %}">
+                /share/{{ grant.pk }}/verify/
+              </a>
+            </dd>
+          </dl>
+
+          <div class="text-center bg-light rounded-3 p-4 mb-3">
+            <p class="small text-muted mb-1">Recipient OTP Code</p>
+            <span class="display-5 fw-bold font-monospace letter-spacing-wide">{{ grant_otp }}</span>
+            <p class="small text-muted mt-1">
+              <i class="bi bi-clock me-1"></i>Valid for 5 minutes &bull; Single use
+            </p>
+          </div>
+
+          <a href="{% url 'core:document_list' doc.patient.patient_id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Documents
+          </a>
+        </div>
+      </div>
+
+      {% else %}
+      <!-- ── Sharing form ── -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+          <h4 class="fw-bold mb-0">
+            <i class="bi bi-share text-warning me-2"></i>Share Document via OTP
+          </h4>
+          <p class="text-muted small mt-1">Document: <strong>{{ doc.display_name }}</strong></p>
+        </div>
+        <div class="card-body px-4 pb-4">
+
+          <div class="alert alert-info py-2 small mb-4">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>DEMO feature.</strong> A mock OTP will be generated for the recipient.
+            The code will be displayed on-screen only — no email is sent.
+            Grant expires in 15 minutes.
+          </div>
+
+          {% if form.errors %}
+          <div class="alert alert-danger py-2 small">
+            <i class="bi bi-exclamation-triangle me-1"></i>Please correct the errors below.
+          </div>
+          {% endif %}
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-4">
+              <label for="id_recipient_email" class="form-label fw-semibold small">
+                {{ form.recipient_email.label }}
+              </label>
+              {{ form.recipient_email }}
+              <div class="form-text">{{ form.recipient_email.help_text }}</div>
+              {% if form.recipient_email.errors %}
+              <div class="invalid-feedback d-block small">{{ form.recipient_email.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-warning fw-semibold">
+                <i class="bi bi-send me-2"></i>Create Sharing Grant
+              </button>
+              <a href="{% url 'core:document_list' doc.patient.patient_id %}" class="btn btn-outline-secondary">
+                Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

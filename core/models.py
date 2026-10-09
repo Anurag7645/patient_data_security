@@ -206,3 +206,166 @@ class PatientProfile(models.Model):
         today = date.today()
         dob = self.date_of_birth
         return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3 Models
+# ─────────────────────────────────────────────────────────────────────────────
+
+import os
+import uuid
+
+
+# ── Medical document ──────────────────────────────────────────────────────────
+
+DOC_TYPE_CHOICES = [
+    ("lab_result",   "Lab Result"),
+    ("prescription", "Prescription"),
+    ("imaging",      "Imaging / Radiology"),
+    ("discharge",    "Discharge Summary"),
+    ("referral",     "Referral Letter"),
+    ("other",        "Other"),
+]
+
+
+def _document_upload_path(instance, filename):
+    """Store uploads under media_private/docs/<patient_id>/<uuid>.<ext>"""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    safe_name = f"{uuid.uuid4().hex}.{ext}" if ext else f"{uuid.uuid4().hex}"
+    return os.path.join("docs", instance.patient.patient_id, safe_name)
+
+
+class MedicalDocument(models.Model):
+    """
+    Metadata + file reference for an uploaded patient document.
+
+    The file is stored in MEDIA_ROOT (not in static/).
+    Downloads are routed through authenticated views only.
+    """
+
+    patient         = models.ForeignKey(
+        PatientProfile, on_delete=models.CASCADE, related_name="documents"
+    )
+    uploaded_by     = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="uploaded_documents"
+    )
+    display_name    = models.CharField(max_length=255, help_text="Original display name shown to users.")
+    stored_file     = models.FileField(upload_to=_document_upload_path)
+    doc_type        = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES, default="other")
+    file_size_bytes = models.PositiveIntegerField(default=0)
+    uploaded_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Medical Document"
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"{self.display_name} ({self.patient.patient_id})"
+
+    @property
+    def extension(self):
+        return self.stored_file.name.rsplit(".", 1)[-1].lower() if "." in self.stored_file.name else ""
+
+
+# ── Sharing grant ─────────────────────────────────────────────────────────────
+
+SHARING_MAX_ATTEMPTS = 3
+
+
+class SharingGrant(models.Model):
+    """
+    OTP-protected one-document sharing request.
+
+    Workflow:
+      1. Doctor calls create_for(document, recipient).
+      2. Recipient is shown the mock OTP panel (reuses OTPToken).
+      3. Recipient verifies with their OTP → grant becomes active.
+      4. Active grant allows a single authenticated download of the document.
+      5. Grant expires after SHARING_GRANT_MINUTES.
+
+    Labels: DEMO – local mock OTP sharing only.
+    """
+
+    document    = models.ForeignKey(MedicalDocument, on_delete=models.CASCADE, related_name="grants")
+    created_by  = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_grants")
+    recipient   = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_grants")
+
+    # OTP verification state
+    otp_token   = models.OneToOneField(
+        OTPToken, on_delete=models.SET_NULL, null=True, blank=True, related_name="sharing_grant"
+    )
+    verified    = models.BooleanField(default=False)
+
+    # Timing
+    created_at  = models.DateTimeField(auto_now_add=True)
+    expires_at  = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "Sharing Grant"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Grant {self.pk}: {self.document.display_name} → {self.recipient.username}"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self) -> bool:
+        return self.verified and not self.is_expired
+
+
+# ── Audit log ─────────────────────────────────────────────────────────────────
+
+class AuditOutcome(models.TextChoices):
+    SUCCESS  = "success",  "Success"
+    DENIED   = "denied",   "Denied"
+    FAILED   = "failed",   "Failed"
+    INFO     = "info",     "Info"
+
+
+class AuditLog(models.Model):
+    """
+    Basic application-level audit log.
+
+    NOTE: This is a prototype audit log. It is NOT cryptographically
+    immutable or tamper-proof. Do not use in production without hardening.
+    """
+
+    timestamp       = models.DateTimeField(auto_now_add=True, db_index=True)
+    user            = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs"
+    )
+    action          = models.CharField(max_length=60, db_index=True)
+    resource_type   = models.CharField(max_length=60, blank=True)
+    resource_id     = models.CharField(max_length=120, blank=True)
+    outcome         = models.CharField(
+        max_length=20, choices=AuditOutcome.choices, default=AuditOutcome.INFO, db_index=True
+    )
+    reason          = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Audit Log Entry"
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        who = self.user.username if self.user else "anonymous"
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {who} | {self.action} | {self.outcome}"
+
+    @classmethod
+    def log(cls, *, action: str, outcome: str = AuditOutcome.INFO,
+            user=None, resource_type: str = "", resource_id: str = "",
+            reason: str = "") -> "AuditLog":
+        """Convenience factory. Never raises – audit failure must not break the request."""
+        try:
+            return cls.objects.create(
+                user=user if (user and getattr(user, "pk", None)) else None,
+                action=action,
+                resource_type=resource_type,
+                resource_id=str(resource_id),
+                outcome=outcome,
+                reason=reason[:255],
+            )
+        except Exception:
+            return None  # silently swallow to avoid breaking caller

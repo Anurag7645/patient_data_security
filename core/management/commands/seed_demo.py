@@ -2,18 +2,21 @@
 Management command: seed_demo
 
 Creates repeatable fictional demonstration data.
-Safe to rerun – existing users and patient records are not duplicated.
+Safe to rerun – existing users, patient records, and documents are not duplicated.
 
 Usage:
     python manage.py seed_demo
 """
 
+import io
+import os
 from datetime import date
 
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 
-from core.models import OTPToken, PatientProfile, Role, UserProfile
+from core.models import MedicalDocument, OTPToken, PatientProfile, Role, UserProfile
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,9 +86,41 @@ DEMO_PATIENTS = [
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Demo documents – minimal valid PDF bytes (fictional, not real medical data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _minimal_pdf(title: str) -> bytes:
+    """Returns the smallest valid PDF that renders a title line."""
+    body = (
+        "%PDF-1.4\n"
+        "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+        "3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R"
+        "/Contents 4 0 R/Resources<</Font<</F1<</Type/Font"
+        "/Subtype/Type1/BaseFont/Helvetica>>>>>>>>>>endobj\n"
+    )
+    stream = f"BT /F1 14 Tf 72 720 Td ({title} - FICTIONAL DEMO DATA) Tj ET"
+    body += (
+        f"4 0 obj<</Length {len(stream)}>>\nstream\n{stream}\nendstream endobj\n"
+        "xref\n0 5\n0000000000 65535 f \n"
+        "trailer<</Size 5/Root 1 0 R>>\nstartxref\n0\n%%EOF\n"
+    )
+    return body.encode()
+
+
+DEMO_DOCUMENTS = [
+    # (patient_username, doctor_username, display_name, doc_type)
+    ("patient_blake", "dr_carter", "Blood Panel Oct 2026 - DEMO",    "lab_result"),
+    ("patient_blake", "dr_carter", "Hypertension Prescription - DEMO","prescription"),
+    ("patient_ford",  "dr_carter", "HbA1c Result Oct 2026 - DEMO",   "lab_result"),
+    ("patient_hayes", "dr_patel",  "Asthma Referral Letter - DEMO",  "referral"),
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 class Command(BaseCommand):
-    help = "Seed fictional demonstration data for Secure Health Phase 2."
+    help = "Seed fictional demonstration data for Secure Health Phase 2 + 3."
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.MIGRATE_HEADING("Seeding demo data…"))
@@ -105,12 +140,10 @@ class Command(BaseCommand):
                 },
             )
             if created:
-                # Set an unusable password – login is OTP-only
                 user.set_unusable_password()
                 user.save()
                 self.stdout.write(f"  Created user: {username} ({email})")
             else:
-                # Ensure email and names are up to date on reruns
                 updated = False
                 for field, val in [("email", email), ("first_name", first), ("last_name", last)]:
                     if getattr(user, field) != val:
@@ -120,10 +153,8 @@ class Command(BaseCommand):
                     user.save()
                 self.stdout.write(f"  Exists  user: {username}")
 
-            # ── UserProfile ────────────────────────────────────────────────
             _profile, _p_created = UserProfile.objects.get_or_create(
-                user=user,
-                defaults={"role": role},
+                user=user, defaults={"role": role},
             )
             if not _p_created and _profile.role != role:
                 _profile.role = role
@@ -132,6 +163,7 @@ class Command(BaseCommand):
             created_users[username] = user
 
         # ── Create patient profiles ───────────────────────────────────────
+        created_patients: dict[str, PatientProfile] = {}
         for (
             username, patient_id, dob, gender, blood_group,
             phone, address, allergies, history, meds, doctor_username
@@ -156,6 +188,32 @@ class Command(BaseCommand):
             )
             status = "Created" if _pp_created else "Exists "
             self.stdout.write(f"  {status} patient: {patient_id} ({username})")
+            created_patients[username] = _pp
+
+        # ── Create demo documents ─────────────────────────────────────────
+        self.stdout.write("  Seeding demo documents…")
+        for pat_username, doc_username, display_name, doc_type in DEMO_DOCUMENTS:
+            profile = created_patients.get(pat_username)
+            uploader = created_users.get(doc_username)
+            if not profile or not uploader:
+                continue
+
+            # Only create if a doc with this display_name doesn't already exist
+            if MedicalDocument.objects.filter(patient=profile, display_name=display_name).exists():
+                self.stdout.write(f"    Exists  doc: {display_name}")
+                continue
+
+            pdf_bytes = _minimal_pdf(display_name)
+            doc = MedicalDocument(
+                patient=profile,
+                uploaded_by=uploader,
+                display_name=display_name,
+                doc_type=doc_type,
+                file_size_bytes=len(pdf_bytes),
+            )
+            safe_name = f"demo_{display_name[:20].replace(' ', '_').lower()}.pdf"
+            doc.stored_file.save(safe_name, ContentFile(pdf_bytes), save=True)
+            self.stdout.write(f"    Created doc: {display_name}")
 
         self.stdout.write(self.style.SUCCESS("\nDemo data ready.\n"))
         self.stdout.write("Demo accounts (use email + OTP at /login/):")

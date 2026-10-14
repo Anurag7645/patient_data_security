@@ -5,9 +5,17 @@ Cybersecurity Framework for Secure Patient Data Transmission
 in Healthcare Networks (Secure Health).
 """
 
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Auto-include local venv site-packages if running with system python
+_venv_lib = BASE_DIR / "venv" / "lib"
+if _venv_lib.is_dir():
+    for _p in _venv_lib.glob("python*/site-packages"):
+        if _p.is_dir() and str(_p) not in sys.path:
+            sys.path.insert(0, str(_p))
 
 # ── Security ─────────────────────────────────────────────────────────────────
 SECRET_KEY = "django-insecure-change-this-before-deploying-to-production"

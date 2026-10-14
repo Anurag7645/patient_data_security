@@ -1,4 +1,4 @@
-"""URL patterns for the core app – Phase 2 + Phase 3."""
+"""URL patterns for the core app – Phase 2 + Phase 3 + Final."""
 
 from django.urls import path
 from . import views
@@ -18,6 +18,9 @@ urlpatterns = [
     path("dashboard/",                     views.dashboard,      name="dashboard"),
     path("patients/",                      views.patient_list,   name="patient_list"),
     path("patients/<str:patient_id>/",     views.patient_detail, name="patient_detail"),
+
+    # PDF report – Final
+    path("patients/<str:patient_id>/report/", views.generate_patient_report, name="patient_report"),
 
     # Documents – Phase 3
     path("patients/<str:patient_id>/documents/",        views.document_list,   name="document_list"),

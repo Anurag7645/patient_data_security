@@ -25,16 +25,22 @@ Document management (Phase 3)
 Audit (Phase 3)
 ───────────────
   /audit/   – audit log page (admin only)
+
+PDF report (Phase 4 / final)
+─────────────────────────────
+  /patients/<id>/report/   – on-demand PDF patient summary (admin, doctor-assigned, own patient)
 """
 
+import io
 import mimetypes
 import os
+from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -654,3 +660,264 @@ def audit_log(request):
         "outcome_choices": AuditOutcome.choices,
     }
     return render(request, "core/audit_log.html", ctx)
+
+
+# ── PDF patient report ────────────────────────────────────────────────────────
+
+def _build_patient_pdf(profile: PatientProfile) -> bytes:
+    """
+    Build a PDF patient summary report using ReportLab.
+    Returns raw PDF bytes.
+
+    This is an academic prototype. All data is fictional.
+    Never log or store medical-record contents.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=2.5 * cm,
+        bottomMargin=2 * cm,
+        title="Patient Summary Report",
+        author="Secure Health (Academic Prototype)",
+    )
+
+    styles = getSampleStyleSheet()
+
+    # Custom styles
+    title_style = ParagraphStyle(
+        "SHTitle",
+        parent=styles["Title"],
+        fontSize=20,
+        textColor=colors.HexColor("#1a3a5c"),
+        spaceAfter=4,
+    )
+    subtitle_style = ParagraphStyle(
+        "SHSubtitle",
+        parent=styles["Normal"],
+        fontSize=10,
+        textColor=colors.HexColor("#5a7a9c"),
+        spaceAfter=2,
+    )
+    section_style = ParagraphStyle(
+        "SHSection",
+        parent=styles["Heading2"],
+        fontSize=11,
+        textColor=colors.HexColor("#1a3a5c"),
+        spaceBefore=14,
+        spaceAfter=4,
+        borderPad=0,
+    )
+    body_style = ParagraphStyle(
+        "SHBody",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=14,
+    )
+    disclaimer_style = ParagraphStyle(
+        "SHDisclaimer",
+        parent=styles["Normal"],
+        fontSize=8,
+        textColor=colors.HexColor("#c0392b"),
+        backColor=colors.HexColor("#fdf2f2"),
+        borderColor=colors.HexColor("#e74c3c"),
+        borderWidth=0.5,
+        borderPad=6,
+        spaceAfter=0,
+    )
+
+    def _val(text):
+        """Return text or 'Not provided' for empty fields."""
+        return str(text).strip() if text and str(text).strip() else "Not provided"
+
+    def _para(text, style=None):
+        return Paragraph(text, style or body_style)
+
+    def _section(title):
+        return Paragraph(title, section_style)
+
+    def _rule():
+        return HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#dee2e6"), spaceAfter=4)
+
+    # ── Page number footer callback ───────────────────────────────────────────
+    def _add_page_number(canvas, doc_ref):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#6c757d"))
+        page_num = f"Page {canvas.getPageNumber()}"
+        canvas.drawRightString(A4[0] - 2 * cm, 1.2 * cm, page_num)
+        canvas.drawString(2 * cm, 1.2 * cm, "Secure Health – Academic Prototype – Not for clinical use")
+        canvas.restoreState()
+
+    # ── Assemble content ──────────────────────────────────────────────────────
+    story = []
+
+    # Header
+    story.append(_para("🛡 Secure Health", title_style))
+    story.append(_para("Patient Summary Report", subtitle_style))
+    story.append(_para(
+        f"Generated: {timezone.now().strftime('%d %B %Y at %H:%M UTC')}",
+        subtitle_style,
+    ))
+    story.append(_rule())
+
+    # Demographics table
+    story.append(_section("Demographics"))
+    gender_map = {"M": "Male", "F": "Female", "O": "Other", "U": "Prefer not to say"}
+    gender_display = gender_map.get(profile.gender, _val(profile.gender))
+    assigned_doc_name = (
+        profile.assigned_doctor.get_full_name() if profile.assigned_doctor else "Not assigned"
+    )
+    dob_str = profile.date_of_birth.strftime("%d %B %Y") if profile.date_of_birth else "Not provided"
+
+    demo_data = [
+        ["Patient ID",      profile.patient_id],
+        ["Full Name",       _val(profile.full_name)],
+        ["Date of Birth",   dob_str],
+        ["Age",             str(profile.age)],
+        ["Gender",          gender_display],
+        ["Blood Group",     _val(profile.blood_group)],
+    ]
+    demo_table = Table(demo_data, colWidths=[5 * cm, None])
+    demo_table.setStyle(TableStyle([
+        ("FONTNAME",    (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE",    (0, 0), (-1, -1), 9),
+        ("FONTNAME",    (0, 0), (0, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR",   (0, 0), (0, -1), colors.HexColor("#1a3a5c")),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+        ("GRID",        (0, 0), (-1, -1), 0.3, colors.HexColor("#dee2e6")),
+        ("TOPPADDING",  (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(demo_table)
+
+    # Contact
+    story.append(_section("Contact Details"))
+    contact_data = [
+        ["Phone",    _val(profile.phone)],
+        ["Address",  _val(profile.address)],
+        ["Assigned Doctor", assigned_doc_name],
+    ]
+    contact_table = Table(contact_data, colWidths=[5 * cm, None])
+    contact_table.setStyle(TableStyle([
+        ("FONTNAME",      (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 9),
+        ("FONTNAME",      (0, 0), (0, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR",     (0, 0), (0, -1), colors.HexColor("#1a3a5c")),
+        ("ROWBACKGROUNDS",(0, 0), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+        ("GRID",          (0, 0), (-1, -1), 0.3, colors.HexColor("#dee2e6")),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+    ]))
+    story.append(contact_table)
+
+    # Allergies
+    story.append(_section("Known Allergies"))
+    story.append(_para(_val(profile.allergies)))
+
+    # Medical history
+    story.append(_section("Medical History"))
+    story.append(_para(_val(profile.medical_history)))
+
+    # Current medications
+    story.append(_section("Current Medications"))
+    story.append(_para(_val(profile.current_medications)))
+
+    story.append(Spacer(1, 0.6 * cm))
+    story.append(_rule())
+
+    # Disclaimer
+    story.append(Spacer(1, 0.2 * cm))
+    story.append(_para(
+        "⚠ PROTOTYPE DISCLAIMER: This report was generated by an academic demonstration system. "
+        "All records are entirely fictional and are used for educational and research purposes only. "
+        "This report is NOT suitable for clinical use, medical decision-making, or any real-world "
+        "healthcare application.",
+        disclaimer_style,
+    ))
+
+    doc.build(story, onFirstPage=_add_page_number, onLaterPages=_add_page_number)
+    return buf.getvalue()
+
+
+def generate_patient_report(request, patient_id):
+    """
+    Generate and serve a PDF patient summary report on demand.
+
+    Access rules (same as patient_detail):
+      - Admin:      any patient
+      - Doctor:     assigned patients only
+      - Patient:    own record only
+      - Management: denied (no medical data access)
+
+    The report is never stored publicly. It is generated in-memory
+    and returned as a streaming attachment.
+    """
+    redir = _require_auth(request)
+    if redir:
+        return redir
+
+    role    = _get_role(request.user)
+    profile = get_object_or_404(PatientProfile, patient_id=patient_id)
+
+    # ── Authorisation (mirrors patient_detail logic) ──────────────────────────
+    if role == Role.ADMIN:
+        pass
+    elif role == Role.DOCTOR:
+        if profile.assigned_doctor != request.user:
+            AuditLog.log(action="report_generate", outcome=AuditOutcome.DENIED,
+                         user=request.user, resource_type="PatientProfile",
+                         resource_id=patient_id, reason="Doctor not assigned")
+            messages.error(request, "You are not authorised to generate a report for this patient.")
+            return redirect("core:patient_list")
+    elif role == Role.PATIENT:
+        try:
+            own = request.user.patient_profile
+        except PatientProfile.DoesNotExist:
+            messages.error(request, "No patient record associated with your account.")
+            return redirect("core:dashboard")
+        if own.pk != profile.pk:
+            AuditLog.log(action="report_generate", outcome=AuditOutcome.DENIED,
+                         user=request.user, resource_type="PatientProfile",
+                         resource_id=patient_id, reason="Patient accessing other record")
+            messages.error(request, "You can only generate a report for your own record.")
+            return redirect("core:dashboard")
+    else:
+        # Management and unauthenticated-edge-cases are denied
+        AuditLog.log(action="report_generate", outcome=AuditOutcome.DENIED,
+                     user=request.user, resource_type="PatientProfile",
+                     resource_id=patient_id, reason=f"Role '{role}' not permitted")
+        messages.error(request, "You do not have permission to generate patient reports.")
+        return redirect("core:dashboard")
+
+    # ── Generate PDF ──────────────────────────────────────────────────────────
+    try:
+        pdf_bytes = _build_patient_pdf(profile)
+    except Exception as exc:
+        AuditLog.log(action="report_generate", outcome=AuditOutcome.FAILED,
+                     user=request.user, resource_type="PatientProfile",
+                     resource_id=patient_id, reason=f"PDF generation error: {type(exc).__name__}")
+        messages.error(request, "Report generation failed. Please try again or contact the administrator.")
+        return redirect("core:patient_detail", patient_id=patient_id)
+
+    AuditLog.log(action="report_generate", outcome=AuditOutcome.SUCCESS,
+                 user=request.user, resource_type="PatientProfile", resource_id=patient_id)
+
+    # Safe filename: avoids exposing patient name in URL/header
+    filename = f"report_{patient_id}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

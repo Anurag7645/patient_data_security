@@ -790,3 +790,235 @@ class IntegrationAndStartupTests(TestCase):
         form_valid = ShareDocumentForm(data={"recipient_email": "recip_test@securehealth.demo"})
         self.assertTrue(form_valid.is_valid())
         self.assertEqual(form_valid.get_recipient(), user)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PDF Report Tests (Final Phase)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PatientPDFReportTests(TestCase):
+    """
+    Tests for the generate_patient_report view.
+
+    Covers all 10 required scenarios from the spec:
+      1.  Admin can generate a report.
+      2.  Assigned doctor can generate a report.
+      3.  Unassigned doctor is denied.
+      4.  Patient can generate a report for their own record.
+      5.  Patient cannot generate a report for another patient.
+      6.  Unauthenticated user is redirected.
+      7.  Response has correct PDF content-type and download filename.
+      8.  PDF contains expected patient information and prototype disclaimer.
+      9.  Empty optional fields do not break report generation.
+      10. Report generation produces an audit log entry.
+    """
+
+    def setUp(self):
+        self.client  = Client()
+
+        self.admin   = make_user("rpt_admin", "rptadmin@test.demo",  Role.ADMIN,   "Alice", "Admin")
+        self.doc1    = make_user("rpt_doc1",  "rptdoc1@test.demo",   Role.DOCTOR,  "Bob",   "Doctor")
+        self.doc2    = make_user("rpt_doc2",  "rptdoc2@test.demo",   Role.DOCTOR,  "Carol", "Doctor")
+        self.mgmt    = make_user("rpt_mgmt",  "rptmgmt@test.demo",   Role.MANAGEMENT)
+        self.pat1_u  = make_user("rpt_pat1",  "rptpat1@test.demo",   Role.PATIENT, "Dave",  "Patient")
+        self.pat2_u  = make_user("rpt_pat2",  "rptpat2@test.demo",   Role.PATIENT, "Eve",   "Patient")
+
+        from datetime import date
+        self.pat1 = PatientProfile.objects.create(
+            patient_user=self.pat1_u,
+            patient_id="RPT-0001",
+            date_of_birth=date(1985, 6, 15),
+            gender="M",
+            blood_group="A+",
+            phone="01234-567890",
+            address="1 Demo Lane, Fictitious City",
+            allergies="Penicillin, Aspirin",
+            medical_history="Hypertension (fictional). No real data.",
+            current_medications="Amlodipine 5mg (fictional)",
+            assigned_doctor=self.doc1,
+        )
+        self.pat2 = PatientProfile.objects.create(
+            patient_user=self.pat2_u,
+            patient_id="RPT-0002",
+            date_of_birth=date(1990, 3, 22),
+            gender="F",
+            blood_group="B-",
+            phone="",
+            address="",
+            allergies="",
+            medical_history="",
+            current_medications="",
+            assigned_doctor=None,
+        )
+
+    def _url(self, pid):
+        return reverse("core:patient_report", kwargs={"patient_id": pid})
+
+    # ── Test 1: Admin can generate any report ──────────────────────────────────
+
+    def test_admin_can_generate_report(self):
+        """Admin should receive a PDF response for any patient."""
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+
+    # ── Test 2: Assigned doctor can generate report ────────────────────────────
+
+    def test_assigned_doctor_can_generate_report(self):
+        """doc1 is assigned to pat1 and should receive a PDF."""
+        self.client.force_login(self.doc1)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+
+    # ── Test 3: Unassigned doctor is denied ───────────────────────────────────
+
+    def test_unassigned_doctor_denied_report(self):
+        """doc2 is NOT assigned to pat1 and must be denied."""
+        self.client.force_login(self.doc2)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertRedirects(resp, reverse("core:patient_list"))
+        self.assertTrue(
+            AuditLog.objects.filter(action="report_generate", outcome=AuditOutcome.DENIED).exists()
+        )
+
+    # ── Test 4: Patient can generate their own report ─────────────────────────
+
+    def test_patient_can_generate_own_report(self):
+        """pat1_u should receive a PDF for their own record."""
+        self.client.force_login(self.pat1_u)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+
+    # ── Test 5: Patient cannot generate report for another patient ────────────
+
+    def test_patient_denied_other_patient_report(self):
+        """pat1_u must not access pat2's report."""
+        self.client.force_login(self.pat1_u)
+        resp = self.client.get(self._url("RPT-0002"))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+        self.assertTrue(
+            AuditLog.objects.filter(action="report_generate", outcome=AuditOutcome.DENIED).exists()
+        )
+
+    # ── Test 6: Unauthenticated user cannot generate report ───────────────────
+
+    def test_unauthenticated_redirected(self):
+        """Unauthenticated requests must be redirected to login."""
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertRedirects(resp, reverse("core:login"))
+
+    # ── Test 7: Correct content-type and filename ─────────────────────────────
+
+    def test_response_has_pdf_content_type_and_filename(self):
+        """Response must declare application/pdf and a safe attachment filename."""
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        content_disp = resp.get("Content-Disposition", "")
+        self.assertIn("attachment", content_disp)
+        self.assertIn("RPT-0001", content_disp)
+        self.assertIn(".pdf", content_disp)
+
+    # ── Test 8: PDF contains patient data and disclaimer ──────────────────────
+
+    def test_pdf_contains_patient_data_and_disclaimer(self):
+        """
+        The generated PDF must:
+        - Start with the PDF magic bytes.
+        - Embed the patient ID in the decompressed content stream.
+        - Embed the prototype disclaimer word "fictional" in the content stream.
+
+        ReportLab emits ASCII85 + FlateDecode streams (stream\\n...~>endstream).
+        We decompress them and search the decoded text.
+        """
+        import zlib
+        import re
+        import base64
+
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertEqual(resp.status_code, 200)
+        pdf_bytes = resp.content
+
+        # 1. Valid PDF signature
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-"), "Response is not a PDF")
+
+        # 2. Extract and decompress content streams.
+        #    ReportLab writes: <<...>>stream\n<ASCII85 data>~>endstream
+        #    The ~> terminator is part of the stream data, not a delimiter.
+        streams_raw = re.findall(rb"stream\n(.*?)endstream", pdf_bytes, re.DOTALL)
+        decompressed_all = b""
+        for raw_stream in streams_raw:
+            raw_stream = raw_stream.strip()
+            try:
+                # ASCII85 streams end with ~>; a85decode with adobe=True handles this.
+                decoded = base64.a85decode(raw_stream, adobe=True,
+                                           ignorechars=b" \t\n\r")
+                decompressed_all += zlib.decompress(decoded)
+            except Exception:
+                try:
+                    decompressed_all += zlib.decompress(raw_stream)
+                except Exception:
+                    decompressed_all += raw_stream  # fall back to raw
+
+        # 3. Patient ID must appear in decompressed stream
+        self.assertIn(b"RPT-0001", decompressed_all,
+                      "Patient ID 'RPT-0001' not found in decompressed PDF content")
+
+        # 4. Disclaimer keyword must appear in decompressed stream
+        self.assertIn(b"fictional", decompressed_all.lower(),
+                      "Disclaimer keyword 'fictional' not found in decompressed PDF content")
+
+
+
+
+
+    # ── Test 9: Empty optional fields do not break generation ─────────────────
+
+    def test_empty_optional_fields_do_not_raise(self):
+        """
+        pat2 has blank phone, address, allergies, medical_history, medications
+        and no assigned doctor.  Report must still generate cleanly.
+        """
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url("RPT-0002"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content.startswith(b"%PDF-"))
+
+    # ── Test 10: Audit log records the event ──────────────────────────────────
+
+    def test_report_generation_audit_logged(self):
+        """Successful report generation must produce an audit log entry."""
+        self.client.force_login(self.admin)
+        self.client.get(self._url("RPT-0001"))
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="report_generate",
+                outcome=AuditOutcome.SUCCESS,
+                resource_type="PatientProfile",
+                resource_id="RPT-0001",
+            ).exists()
+        )
+
+    # ── Management is denied ──────────────────────────────────────────────────
+
+    def test_management_denied_report(self):
+        """Management role must not access any PDF report."""
+        self.client.force_login(self.mgmt)
+        resp = self.client.get(self._url("RPT-0001"))
+        self.assertRedirects(resp, reverse("core:dashboard"))
+        self.assertTrue(
+            AuditLog.objects.filter(action="report_generate", outcome=AuditOutcome.DENIED).exists()
+        )
+
+    # ── Non-existent patient returns 404 ──────────────────────────────────────
+
+    def test_nonexistent_patient_report_404(self):
+        """Admin requesting a report for a non-existent patient_id must get 404."""
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url("RPT-9999"))
+        self.assertEqual(resp.status_code, 404)
